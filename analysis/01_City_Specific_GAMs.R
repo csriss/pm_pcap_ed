@@ -142,20 +142,120 @@ for (i in 1:6){
 
 
 
+#Define function for fitting PM*PCAP interaction models
+
+city_pm_pcap_gam <- function(df, outcome) {
+  formula_str <- paste(outcome, 
+                       "~pm01*pcap01 + s(temp03,bs='cr',k=10) + s(dewpt03,bs='cr') + s(t,bs='cr',k=5,m=2) + season_group + dow + is_holiday ")
+  
+  gam(as.formula(formula_str), 
+      family = quasipoisson, 
+      data = df,method="REML")
+}
+
+
+
+#Run PM*PCAP Interaction Models for all cities
+
+all_results_pm_pcap_gam <- map_dfr(outcomes, function(current_outcome) {
+  nested %>%
+    mutate(
+      models = map(data, ~city_pm_pcap_gam(.x, current_outcome)),
+      outcome = current_outcome,
+      
+      coefs = map(models, ~{
+        td  <- tidy(.x, parametric = TRUE)
+        vc  <- vcov(.x)
+        
+        est_main <- td$estimate[td$term == "pm01"]
+        est_int  <- td$estimate[td$term == "pm01:pcap011"]
+        se_main  <- td$std.error[td$term == "pm01"]
+        se_int   <- td$std.error[td$term == "pm01:pcap011"]
+        se_pcap  <- sqrt(vc["pm01","pm01"] + 
+                           vc["pm01:pcap011","pm01:pcap011"] + 
+                           2 * vc["pm01","pm01:pcap011"])
+        
+        tibble(
+          term                 = c("noPCAP", "PCAP","interaction"),
+          estimate             = c(est_main, est_main + est_int, est_int),
+          se                   = c(se_main,  se_pcap, se_int),
+          RR_10unit            = exp(10 * estimate),
+          RR_10unit_conf.low   = exp(10 * (estimate - 1.96 * se)),
+          RR_10unit_conf.high  = exp(10 * (estimate + 1.96 * se))
+        )
+      })
+    ) %>%
+    select(city, outcome, coefs) %>%
+    unnest(coefs)
+})
+
+
+#Meta analysis and forest plots of interaction model estimates
+
+for (i in 1:6) {
+  
+  # Plot 1: No PCAP
+  all_results_pm_pcap_gam %>% 
+    filter(outcome == outcomes[i], term == "noPCAP") %>% 
+    rma(yi = estimate, sei = se, data = ., method = "REML") %>% 
+    forest(slab = city, xlab = "RR PM No PCAP",
+           atransf = exp_10_unit, digits = 3, header = outcome_labs[i])
+  
+  # Plot 2: PCAP
+  all_results_pm_pcap_gam %>% 
+    filter(outcome == outcomes[i], term == "PCAP") %>% 
+    rma(yi = estimate, sei = se, data = ., method = "REML") %>% 
+    forest(slab = city, xlab = "RR PM PCAP",
+           atransf = exp_10_unit, digits = 3, header = outcome_labs[i])
+}
 
 
 
 
 
+# Meta Analysis with estimates for interaction term
+
+meta_pm_pcap <- function(results_df, outcome_name) {
+  
+  results_df <- results_df %>% filter(outcome == outcome_name)
+  
+  map_dfr(c("noPCAP", "PCAP", "interaction"), function(trm) {
+    dat <- results_df %>% filter(term == trm)
+    
+    fit <- rma(
+      yi     = estimate,
+      vi     = se^2,
+      data   = dat,
+      method = "REML"
+    )
+    
+    tibble(
+      outcome            = outcome_name,
+      term               = trm,
+      pooled_estimate    = fit$beta[1],
+      pooled_se          = fit$se,
+      ci_lo              = fit$ci.lb,
+      ci_hi              = fit$ci.ub,
+      p_pooled           = fit$pval,
+      I2                 = fit$I2,
+      Q                  = fit$QE,
+      Q_pval             = fit$QEp,
+      RR_10unit          = exp(10 * fit$beta[1]),
+      RR_10unit_conf.low = exp(10 * fit$ci.lb),
+      RR_10unit_conf.high= exp(10 * fit$ci.ub)
+    )
+  })
+}
 
 
+meta_results <- map_dfr(outcomes, ~meta_pm_pcap(all_results_pm_pcap_gam, .x))
 
+meta_results<-left_join(meta_results,outcome_df,by="outcome")
 
+meta_results$p_pooled<-round(meta_results$p_pooled,digits=4)
 
-
-
-
-
+meta_results<-meta_results %>% 
+  mutate(rr_fmt=paste(round(RR_10unit,digits=3),"(",round(RR_10unit_conf.low,digits=3),", ",round(RR_10unit_conf.high,digits=3),")"))
 
 
 
