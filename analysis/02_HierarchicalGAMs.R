@@ -204,6 +204,37 @@ pm_pcap_combined_er_curves %>%
 
 
 
+## Ordered Factor Curve Differences
+
+test99_clean$pcap01_of<-factor(test99_clean$pcap01,ordered = T,levels=c("0","1"))
+contrasts(test99_clean$pcap01_of) <- "contr.treatment"
+
+hgam_pm_pcap_of_fun <- function(df, outcome) {
+  formula_str <- paste(outcome, 
+                       "~0 + city * dow + city:is_holiday +s(pm01, k=8, bs='ps') + s(pm01, k=8, bs='ps', m=2,by=pcap01_of) + s(temp03, city, bs='fs') + city:pcap01_of+
+    s(dewpt03, city, bs='fs') + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
+  
+  bam(as.formula(formula_str), 
+      family = quasipoisson, 
+      data = df,method="fREML",discrete=T,nthreads=2)
+}
+
+#Run HGAM for all outcomes
+hgam_pm_pcap_of_results <- map(outcomes, ~hgam_pm_pcap_of_fun(test99_clean, .x))
+
+#Name List
+names(hgam_pm_pcap_of_results)<-outcome_labs
+
+#All model summaries
+pm_pcap_of_summaries<-map(hgam_pm_pcap_of_results,~summary(.x))
+
+
+pm_pcap_of_summary_tables<-map(hgam_pm_pcap_of_results,~summary(.x)$s.table)
+names(pm_pcap_of_summary_tables)<-outcome_labs
+
+pm_pcap_of_summary_tables
+
+
 
 
 
