@@ -174,6 +174,43 @@ meta_pm_pcap_icd10 <- map_dfr(outcomes, ~meta_pm_pcap(pm_pcap_icd10, .x))
 meta_pm_pcap_icd10<-left_join(meta_pm_pcap_icd10,outcome_df,by="outcome")
 
 
+# Calculate percent change in risk estimates across periods for interaction models
+
+meta_pm_pcap_icd9$icd_version<-"9"
+
+meta_pm_pcap_icd10$icd_version<-"10"
+
+meta_pm_pcap_icd_9_10<-rbind(meta_pm_pcap_icd9,meta_pm_pcap_icd10)
+
+
+icd9est<-meta_pm_pcap_icd9 %>% 
+  select(outcome,term,pooled_estimate,pooled_se) %>% 
+  mutate(icd_version="9")
+
+
+
+icd10est<-meta_pm_pcap_icd10 %>% 
+  select(outcome,term,pooled_estimate,pooled_se) %>% 
+  mutate(icd_version="10")
+
+icd_9_10_est<-rbind(icd9est,icd10est)
+
+
+icd_9_10_est_wide<-icd_9_10_est %>% 
+  pivot_wider(names_from=icd_version,values_from = c("pooled_estimate","pooled_se"),
+              id_cols=c(outcome,term))
+
+icd_9_10_est_wide<-icd_9_10_est_wide %>% 
+  mutate(delta_rr=(exp(pooled_estimate_10-pooled_estimate_9)-1)*100,
+         diff_log_rr = pooled_estimate_10 - pooled_estimate_9,
+         se_diff=sqrt(pooled_se_9^2 + pooled_se_10^2),
+         lower_log = diff_log_rr - (1.96 * se_diff),
+         upper_log = diff_log_rr + (1.96 * se_diff),
+         pct_diff  = (exp(diff_log_rr) - 1) * 100,
+         pct_lower = (exp(lower_log) - 1) * 100,
+         pct_upper = (exp(upper_log) - 1) * 100
+  )
+
 
 
 
