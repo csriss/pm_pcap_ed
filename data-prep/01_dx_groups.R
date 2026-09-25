@@ -6,7 +6,7 @@ library(tidyverse)
 
 #Data
 ## Load ED Visit Data 
-## Example dataset used below is from Nevada nv_dxcleaner
+## Example dataset used below is from Nevada called nv_dxcleaner
 ## Functions work on a column of all different ICD codes from a given visit separated by commas
 
 
