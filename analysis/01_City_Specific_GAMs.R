@@ -363,8 +363,12 @@ run_model <- function(model, data, label = "full") {
 
 
 
+# Run Models
 
+dat<-allcity_test3
 
+main_out     <- run_model("main",              dat)
+int_out      <- run_model("interaction",       dat)
 
 
 
