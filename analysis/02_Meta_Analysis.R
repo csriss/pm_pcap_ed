@@ -66,7 +66,30 @@ forest_mv <- function(out, model, outcome, term, ...) {
 }
 
 
+#Label Outcomes for Plot
+outcomes<-c("resp_prin","lad_prin","uad_prin","asthma_attack_prin","bronchitis_prin",
+            "pneumonia_prin")
 
+outcome_labs<-c("RD","LAD","UAD","Asthma","Bronchitis","Pneumonia")
+
+outcome_df<-data.frame(outcome=outcomes,outcome_labs=outcome_labs)
+
+outcome_df$outcome_labs<-factor(outcome_df$outcome_labs,levels=c("RD","LAD","UAD","Asthma","Bronchitis","Pneumonia"))
+
+outcome_df$outcome_labs<-as.character(outcome_df$outcome_labs)
+
+main_out$results<-left_join(main_out$results,outcome_df)
+
+int_out$results<-left_join(int_out$results,outcome_df)
+
+
+#Generate Plots
+par(mfrow=c(2,3))
+walk(outcomes, ~forest_mv(main_out, "main", .x, "PM"))
+walk(outcomes, ~forest_mv(main_out, "main", .x, "PCAP"))
+
+walk(outcomes, ~forest_mv(int_out, "interaction", .x, "noPCAP")) #pm slope on no pcap days
+walk(outcomes, ~forest_mv(int_out, "interaction", .x, "PCAP"))#pm slopes on pcap days
 
 
 
