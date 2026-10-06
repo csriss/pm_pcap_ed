@@ -4,103 +4,66 @@
 
 
 #Conduct Meta Analysis
+# ---- Forest plots ------------------------------------------------------------
+# City rows = observed Stage 1 estimates (as in an rma forest plot), put on the
+# contrast scale using each city's full vcov. Pooled row = multivariate estimate.
 
-meta_pm_gam_adj_pcap <- res_pm_gam_adj_pcap %>%
-  group_by(outcome,term) %>%
-  nest() %>%
-  mutate(
-    meta = map(data, ~rma(
-      yi     = .x$estimate,
-      sei    = .x$std.error,
-      method = "REML",
-      slab   = .x$city
-    )),
-    pooled_est = map_dbl(meta, ~as.numeric(.x$beta)),
-    pooled_se  = map_dbl(meta, ~.x$se),
-    I2         = map_dbl(meta, ~.x$I2),
-    tau2       = map_dbl(meta, ~.x$tau2),
-    Q          = map_dbl(meta, ~.x$QE),
-    Q_pval     = map_dbl(meta, ~.x$QEp)
-  ) %>%
-  select(-data, -meta) %>%
-  mutate(
-    p_pooled            = round(2 * pnorm(-abs(pooled_est / pooled_se)),digits=4)
-  ) %>% 
-  mutate(
-    conf.low              = pooled_est - 1.96 * pooled_se,
-    conf.high             = pooled_est + 1.96 * pooled_se,
-    RR                    = ifelse(term=="pm01",exp(10 * pooled_est),exp(pooled_est)),
-    RR_conf.low           = ifelse(term=="pm01",exp(10 * pooled_est - 1.96 * (pooled_se * 10)),
-                                   exp(pooled_est - 1.96 * (pooled_se))),
-    RR_conf.high   = ifelse(term=="pm01",exp(10 * pooled_est + 1.96 * (pooled_se * 10)),
-                            exp(pooled_est + 1.96 * (pooled_se)))
+vech2mat <- function(v, k) {
+  m <- matrix(0, k, k)
+  m[lower.tri(m, diag = TRUE)] <- v
+  m + t(m) - diag(diag(m))
+}
+
+# Observed city-level estimates for one contrast (e.g. "PCAP", "noPCAP")
+city_contrast <- function(p, spec, term) {
+  L     <- spec$contrasts[term, ]
+  k     <- length(L)
+  scale <- if (term %in% spec$slope_rows) pm_increment else 1
+  
+  tibble(
+    city = rownames(p$Y),
+    est  = drop(p$Y %*% L) * scale,
+    se   = map_dbl(seq_len(nrow(p$S)),
+                   \(i) sqrt(drop(t(L) %*% vech2mat(p$S[i, ], k) %*% L))) * scale
   )
-
-
-
-#Create Forest Plots of PM2.5 Effect Estimates
-res_pm_gam_adj_pcap2<-res_pm_gam_adj_pcap %>% 
-  mutate(est10unit=10*estimate,
-         se10unit=10*std.error) %>% 
-  filter(term=="pm01")
-
-par(mfrow=c(2,3))
-for (i in 1:6){
-  res_pm_gam_adj_pcap2 %>% 
-    filter(outcome==outcomes[i]) %>% 
-    rma(data=.,yi=est10unit,sei=se10unit,method = "REML") %>% 
-    forest(slab=city,xlab = "Per 10 µg/m³ increase in PM2.5",mlab="Pooled RR",
-           atransf=exp, digits = 3,header = "City",xlim=c(-.2,.3),
-           main=outcome_labs[i],cex = 1.2)
 }
 
 
-
-
-# Meta Analysis with estimates for interaction term
-
-meta_pm_pcap <- function(results_df, outcome_name) {
-  
-  results_df <- results_df %>% filter(outcome == outcome_name)
-  
-  map_dfr(c("noPCAP", "PCAP", "interaction"), function(trm) {
-    dat <- results_df %>% filter(term == trm)
-    
-    fit <- rma(
-      yi     = estimate,
-      vi     = se^2,
-      data   = dat,
-      method = "REML"
-    )
-    
-    tibble(
-      outcome            = outcome_name,
-      term               = trm,
-      pooled_estimate    = fit$beta[1],
-      pooled_se          = fit$se,
-      ci_lo              = fit$ci.lb,
-      ci_hi              = fit$ci.ub,
-      p_pooled           = fit$pval,
-      I2                 = fit$I2,
-      Q                  = fit$QE,
-      Q_pval             = fit$QEp,
-      RR_10unit          = exp(10 * fit$beta[1]),
-      RR_10unit_conf.low = exp(10 * fit$ci.lb),
-      RR_10unit_conf.high= exp(10 * fit$ci.ub)
-    )
-  })
+# Multivariate Meta Analysis: metafor-style forest plot for one model x outcome x term
+forest_mv <- function(out, model, outcome, term, ...) {
+  spec   <- model_specs[[model]]
+  p      <- out$pooled[[outcome]]
+  cd     <- city_contrast(p, spec, term)
+  pooled <- out$results |> filter(outcome == !!outcome, term == !!term)
+  k      <- nrow(cd)
+  labs<-out$results |> filter(outcome == !!outcome, term == !!term) %>% select(outcome_labs)
+  forest(
+    x       = cd$est,
+    sei     = cd$se,
+    slab    = cd$city,
+    atransf = exp,
+    main = labs,
+    digits=3,
+    refline = 0,
+    ylim    = c(-1.5, k + 3),
+    header  = c("City", "RR [95% CI]"),
+    xlab = "",
+    cex = 1.2,
+    xlim=c(-.35,.45),
+    # xlab    = if (term %in% spec$slope_rows)
+    #   paste0("RR per ", pm_increment, " \u00b5g/m\u00b3") else "RR",
+    ...
+  )
+  addpoly(
+    x       = pooled$est,
+    sei     = pooled$se,
+    rows    = -1,
+    atransf = exp,
+    #mlab    = sprintf("Pooled (multivariate RE), \u03c4\u00b2 = %.4f", pooled$tau2)
+    mlab    ="Pooled RR"
+  )
+  abline(h = 0)
 }
-
-
-meta_results <- map_dfr(outcomes, ~meta_pm_pcap(all_results_pm_pcap_gam, .x))
-
-meta_results<-left_join(meta_results,outcome_df,by="outcome")
-
-meta_results$p_pooled<-round(meta_results$p_pooled,digits=4)
-
-meta_results<-meta_results %>% 
-  mutate(rr_fmt=paste(round(RR_10unit,digits=3),"(",round(RR_10unit_conf.low,digits=3),", ",round(RR_10unit_conf.high,digits=3),")"))
-
 
 
 
