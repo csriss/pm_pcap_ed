@@ -61,8 +61,8 @@ head(test99_clean)
 # And global population-level smooth
 hgam_pm_fun <- function(df, outcome) {
   formula_str <- paste(outcome, 
-                       "~0 + city * dow + city:is_holiday + s(pm01, k=8, bs='ps', m=2) + s(temp03, city, bs='fs') + city:pcap01+
-    s(dewpt03, city, bs='fs') + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
+                       "~0 + city * dow + city:is_holiday + s(pm01, k=8, bs='ps', m=2) + s(temp03, city, bs='fs',k=4) + city:pcap01+
+    s(dewpt03, city, bs='fs',k=4) + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
   
   bam(as.formula(formula_str), 
       family = quasipoisson, 
@@ -127,8 +127,8 @@ map(hgam_pm_results,~contrast_fun(.x))
 # And global population-level smooth
 hgam_pm_pcap_fun <- function(df, outcome) {
   formula_str <- paste(outcome, 
-                       "~0 + city * dow + city:is_holiday + s(pm01, k=8, bs='ps', m=2,by=pcap01) + s(temp03, city, bs='fs') + city:pcap01+
-    s(dewpt03, city, bs='fs') + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
+                       "~0 + city * dow + city:is_holiday + s(pm01, k=8, bs='ps', m=2,by=pcap01) + s(temp03, city, bs='fs',k=4) + city:pcap01+
+    s(dewpt03, city, bs='fs',k=4) + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
   
   bam(as.formula(formula_str), 
       family = quasipoisson, 
@@ -213,8 +213,8 @@ contrasts(test99_clean$pcap01_of) <- "contr.treatment"
 
 hgam_pm_pcap_of_fun <- function(df, outcome) {
   formula_str <- paste(outcome, 
-                       "~0 + city * dow + city:is_holiday +s(pm01, k=8, bs='ps') + s(pm01, k=8, bs='ps', m=2,by=pcap01_of) + s(temp03, city, bs='fs') + city:pcap01_of+
-    s(dewpt03, city, bs='fs') + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
+                       "~0 + city * dow + city:is_holiday +s(pm01, k=8, bs='ps') + s(pm01, k=8, bs='ps', m=2,by=pcap01_of) + s(temp03, city, bs='fs',k=4) + city:pcap01_of+
+    s(dewpt03, city, bs='fs',k=4) + s(t,city,bs='fs',k=5,m=1) +   city:season_group")
   
   bam(as.formula(formula_str), 
       family = quasipoisson, 
