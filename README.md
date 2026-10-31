@@ -22,7 +22,7 @@ Design: multi-city time-series analysis
 
 Stage 1: city-specific quasi-Poisson GAMs, with linear PM2.5 term interacted with PCAP status and adjusted for [long-term trend, temperature, day of week, holidays, ...]
 
-Stage 2: random-effects multivariate meta-analysis of the city-specific spline coefficients (mixmeta) to reconstruct pooled exposure–response curves, plus metafor::rma() pooling of linear estimates
+Stage 2: random-effects multivariate meta-analysis of the city-specific coefficients (mixmeta), plus metafor::rma() pooling of linear estimates
 
 Complementary analysis: hierarchical GAMs fit with mgcv::bam() using factor-smooth specifications following Pedersen et al. (2019)
 
